@@ -226,10 +226,10 @@
             </h2>
             <p class="section-subtitle">Monitor and manage your registered users with comprehensive user analytics</p>
           </div>
-          <button class="cta-button primary" @click="openAddUserModal">
+          <!-- <button class="cta-button primary" @click="openAddUserModal">
             <i class="bi bi-person-plus"></i>
             Add User
-          </button>
+          </button> -->
         </div>
 
         <div class="table-container">
