@@ -32,7 +32,7 @@ load_dotenv()
 
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///parking_app.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL")
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=12)
 
@@ -303,10 +303,10 @@ def reset_database():
         # Create default admin user
         admin = User(
             username='admin',
-            email='admin@mad2.com',
+            email='admin@parking.com',
             role='admin',
             password='Admin@123',
-            phone_number='8709186793'
+            phone_number='1234567890'
         )
         db.session.add(admin)
         db.session.commit()
