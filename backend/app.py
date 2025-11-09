@@ -2,6 +2,8 @@ from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_restful import Api, Resource
 from flask_jwt_extended import JWTManager
+from flask_mail import Mail
+
 # Flask-Mail removed - using MailHog for development
 from models import *
 from controllers import (
@@ -36,10 +38,19 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL")
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=12)
 
-# MailHog configuration for development
-app.config['MAILHOG_SERVER'] = os.getenv('MAILHOG_SERVER', 'localhost')
-app.config['MAILHOG_PORT'] = int(os.getenv('MAILHOG_PORT', 8025))
-app.config['MAILHOG_WEB_PORT'] = int(os.getenv('MAILHOG_WEB_PORT', 8025))
+# # MailHog configuration for development
+# app.config['MAILHOG_SERVER'] = os.getenv('MAILHOG_SERVER', 'localhost')
+# app.config['MAILHOG_PORT'] = int(os.getenv('MAILHOG_PORT', 8025))
+# app.config['MAILHOG_WEB_PORT'] = int(os.getenv('MAILHOG_WEB_PORT', 8025))
+
+app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER')
+app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', 587))
+app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS', 'True') == 'True'
+app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
+app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER', app.config['MAIL_USERNAME'])
+
+mail = Mail(app)
 
 # Celery configuration
 app.config['CELERY_BROKER_URL'] = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')

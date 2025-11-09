@@ -232,11 +232,10 @@ pip install -r requirements.txt
 redis-server
 
 # Start Celery worker (in separate terminal)
-python -m celery -A celery_app.celery worker --loglevel=info
+celery -A celery_app.celery worker --loglevel=info --pool=solo
 
 # Start Celery beat scheduler (in separate terminal)
-python -m celery -A celery_app.celery beat --loglevel=info
-
+celery -A celery_app.celery beat --loglevel=info
 # Start Flask application which will create database too
 python app.py
 ```

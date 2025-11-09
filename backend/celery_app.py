@@ -8,7 +8,7 @@ celery = Celery('parking_app')
 celery.conf.update(
     broker_url='redis://localhost:6379/0',
     result_backend='redis://localhost:6379/0',
-    timezone='UTC',
+    timezone='Asia/Kolkata',
     task_serializer='json',
     accept_content=['json'],
     result_serializer='json',
@@ -20,15 +20,14 @@ celery.conf.update(
     beat_schedule={
         'daily-parking-reminders': {
             'task': 'tasks.send_daily_reminders',
-            'schedule': 600.0,  
-            # 'schedule': crontab(hour=18, minute=0),  # Daily at 6:00 PM
+            'schedule': crontab(minute='*/2'),   # 6 PM daily India time
         },
         'monthly-activity-reports': {
             'task': 'tasks.send_monthly_reports',
-            'schedule': 10.0,  
-            # 'schedule': crontab(day_of_month=1, hour=9, minute=0),  # Monthly at 9:00 AM on the 1st
+            'schedule':crontab(minute='*/2'),  # 1st of month at 9 AM
         },
     }
+
 )
 
 def init_celery(app):
