@@ -216,8 +216,8 @@ _Detailed reports and analytics for business insights_
 ### **1. Clone the Repository**
 
 ```bash
-git clone https://github.com/22f3002362/parking_app_22f3002362.git
-cd parking_app_22f3002362
+git clone https://github.com/Vansh-22f300/parking_app__final.git
+cd parking_app_01
 ```
 
 ### **2. Backend Setup**
@@ -439,14 +439,6 @@ python -m pytest     # Run unit tests (when implemented)
 - Test endpoints with different user roles
 - Verify JWT authentication
 
----
-
-## 📞 **Support & Contact**
-
-- **Developer**: Student ID 22f3002362
-- **Project**: MAD 2 (Modern Application Development 2)
-- **Institution**: IIT Madras BS Degree
-- **Email**: 22f3002362@ds.study.iitm.ac.in
 
 ## 🙏 **Acknowledgments**
 
@@ -455,5 +447,3 @@ python -m pytest     # Run unit tests (when implemented)
 - **Flask & Vue.js Communities**: For excellent documentation
 - **Redis & Celery Teams**: For robust background task processing
 
-_Last Updated: July 2025_
-_Version: 1.0.0_
