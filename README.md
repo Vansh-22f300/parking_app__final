@@ -6,7 +6,7 @@
 [![Redis](https://img.shields.io/badge/Redis-7.x-orange.svg)](https://redis.io/)
 [![Celery](https://img.shields.io/badge/Celery-5.3.1-brightgreen.svg)](https://celeryproject.org/)
 
-**ParkEase** is a comprehensive smart parking management system built as part of the MAD 2 (Modern Application Development 2) project. It provides a complete solution for urban parking with real-time availability tracking, automated booking system, payment integration, and advanced analytics.
+**ParkEase** is a comprehensive smart parking management system built as part of the Sem-7 Minor project. It provides a complete solution for urban parking with real-time availability tracking, automated booking system, payment integration, and advanced analytics.
 
 ## 🚀 **Project Overview**
 
@@ -45,7 +45,7 @@ ParkEase revolutionizes urban parking by providing:
 ## 📁 **Project Structure**
 
 ```
-parking_app_22f3002362/
+parking_app_01/
 ├── 📁 backend/
 │   ├── app.py                 # Flask application entry point
 │   ├── models.py              # Database models (User, ParkingLot, etc.)
