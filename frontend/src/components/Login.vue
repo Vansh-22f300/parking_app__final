@@ -14,7 +14,7 @@
       <div class="login-section">
         <div class="brand-header">
           <div class="brand-logo">P</div>
-          <h1 class="brand-title">ParkSmart</h1>
+          <h1 class="brand-title">ParkEase</h1>
           <p class="brand-subtitle">Welcome back! Sign in to your account</p>
         </div>
         
