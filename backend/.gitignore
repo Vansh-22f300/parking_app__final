@@ -4,3 +4,4 @@ instance/
 *.pyc
 venv/
 .env.*
+celerybeat-schedule
