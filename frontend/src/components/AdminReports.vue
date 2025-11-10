@@ -1,4 +1,3 @@
-// frontend/src/views/ReportsView.vue
 <template>
   <div class="reports-container">
     <!-- Admin Navbar (You might want to pass current user or fetch it here) -->
