@@ -9,14 +9,7 @@ info:
 
     A comprehensive RESTful API for managing parking lots, bookings, users, and analytics.
     Built with Flask and designed for real-time parking management with JWT authentication.
-  version: 1.0.0
-  contact:
-    name: Student 22f3002362
-    email: 22f3002362@example.com
-  license:
-    name: MAD2 Project License
-    url: https://example.com/license
-
+  
 servers:
   - url: http://localhost:5000
     description: Development server
