@@ -400,10 +400,10 @@
               v-model="vehicleForm.vehicle_number"
               type="text"
               class="form-input"
-              placeholder="Enter your vehicle number (e.g., MH01AB1234)"
+              placeholder="Enter your vehicle number (e.g., DL01AB1234)"
               required
               pattern="[A-Z]{2}[0-9]{2}[A-Z]{1,2}[0-9]{4}"
-              title="Please enter a valid vehicle number format (e.g., MH01AB1234)"
+              title="Please enter a valid vehicle number format (e.g., DL01AB1234)"
               maxlength="13"
               style="text-transform: uppercase;"
               @input="vehicleForm.vehicle_number = $event.target.value.toUpperCase()"

@@ -592,7 +592,7 @@ const pieChartOptions = ref({
           const value = context.parsed;
           const total = context.dataset.data.reduce((a, b) => a + b, 0);
           const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-          return `${label}: ${value} (${percentage}%)`;
+          return `${label}:(${percentage}%)`;
         }
       }
     }
@@ -1267,7 +1267,7 @@ const exportAnalyticsSummary = async () => {
       
       ['SYSTEM OVERVIEW', '', '', '', ''],
       ['Total Users:', data.user_stats?.total_users || 0, '', '', ''],
-      ['Admin Users:', data.user_stats?.admin_users || 0, '', '', ''],
+      // ['Admin Users:', data.user_stats?.admin_users || 0, '', '', ''],
       ['Regular Users:', data.user_stats?.regular_users || 0, '', '', ''],
       ['Total Reservations:', data.reservation_stats?.total_reservations || 0, '', '', ''],
       ['Active Reservations:', data.reservation_stats?.active_reservations || 0, '', '', ''],
