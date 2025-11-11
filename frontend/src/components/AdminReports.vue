@@ -1261,7 +1261,7 @@ const exportAnalyticsSummary = async () => {
     
     // Create comprehensive analytics export
     const analyticsData = [
-      ['PAREASE ANALYTICS DASHBOARD EXPORT', '', '', '', ''],
+      ['PARKEASE ANALYTICS DASHBOARD EXPORT', '', '', '', ''],
       ['Generated:', new Date().toLocaleString('en-IN'), '', '', ''],
       ['', '', '', '', ''],
       
