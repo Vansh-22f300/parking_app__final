@@ -209,8 +209,8 @@ const validateForm = () => {
   if (!form.phone_number) {
     errors.phone_number = 'Phone number is required'
     isValid = false
-  } else if (!/^[0-9+\-\s()]{10,15}$/.test(form.phone_number.replace(/\s/g, ''))) {
-    errors.phone_number = 'Please enter a valid phone number (10-15 digits)'
+  } else if (!/^[0-9+\-\s()]{10}$/.test(form.phone_number.replace(/\s/g, ''))) {
+    errors.phone_number = 'Please enter a 10-digit valid phone number'
     isValid = false
   }
 

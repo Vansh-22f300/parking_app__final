@@ -216,14 +216,14 @@
                   <i class="bi bi-eye"></i>
                   <span>View</span>
                 </button>
-                <button 
+                <!-- <button 
                   class="action-btn edit-btn" 
                   @click="editUser(user)" 
                   title="Edit User"
                 >
                   <i class="bi bi-pencil"></i>
                   <span>Edit</span>
-                </button>
+                </button> -->
                 <button 
                   v-if="user.role !== 'admin'" 
                   class="action-btn delete-btn" 

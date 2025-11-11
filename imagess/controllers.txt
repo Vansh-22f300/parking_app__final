@@ -1,0 +1,308 @@
+
+GitHub Copilot
+
+Short answer
+
+Redis is used for many convenience features: caching parking-lot data, tracking metrics (API calls, response codes), sessions/active users, rate-limits, daily/monthly counters. That’s why you see many keys and reset logic.
+You should NOT call flushdb() in production. Reset is only necessary for development/testing or when cache corruption/inconsistent state occurs.
+Why so much Redis is used (brief)
+
+Fast in-memory store for frequently read data (reduces DB load).
+Lightweight counters and time-window metrics (incr, sets, SCARD).
+Session / active-user tracking and rate-limiting.
+Background-task result backend (Celery) often uses the same Redis.
+Risks of current approach
+
+flushdb() removes every key in the selected Redis DB — destructive and can break other apps/services using same DB.
+Unrestricted admin endpoints that call flushdb() are dangerous if exposed.
+Storing everything in one DB without prefixes or separate DBs makes selective operations risky.
+Unlimited counters/keys without TTLs can grow memory usage.
+Recommendations (what to do)
+
+Use flushdb only in development and only on a dedicated Redis instance or DB. Never call flushdb in production.
+Prefer selective deletion by prefix/pattern for app keys. Use consistent prefixes (e.g. app:users:, app:counters:) so you can clear only your app’s keys.
+Add TTLs for ephemeral keys (cached parking lots, daily counters) so they expire automatically.
+Protect admin endpoints: require strong auth, check FLASK_ENV != 'production' or require a force flag.
+Consider moving metrics into a time-series DB or analytics service if you need long-term retention.
+Keep Celery results and app cache on separate logical Redis DBs (or separate instances) to avoid accidental deletion.
+Safe replacement example (selective clear + env check)
+
+Windows / Redis CLI: selective clear examples
+
+List keys: redis-cli -h localhost -p 6379 KEYS "parking_lot:*"
+Delete keys (careful): redis-cli -h localhost -p 6379 DEL key1 key2
+Use SCAN in scripts for large datasets (avoid KEYS in production).
+Quick enforcement for admin endpoint
+
+Only allow resets in development:
+When you should reset
+
+Development: before demos, tests, or if stale cached data causes incorrect UI.
+Testing: to ensure deterministic test state.
+After schema changes or migration when cache keys are invalid.
+When you should not reset
+
+Production or shared Redis DB.
+If you only need to clear a specific metric or stale cache—use selective delete.
+If you want, I can:
+
+Patch app.py to replace flushdb() with the safe function and add env checks,
+Or produce a short script/PowerShell commands to delete only the keys you care about.
+Which option do you prefer?
+Redis utility functions — purpose and per-line behavior
+These functions provide a consistent way to interact with Redis for caching, counters, rate-limiting, and sets. Using a central getter ensures tests or app context supply the client.
+
+def get_redis_client():
+Returns current_app.redis_client (attached elsewhere). Returns None if not present; avoids app crash when Redis is unavailable.
+def cache_set(key, value, expiry_seconds=300):
+Purpose: store JSON-serializable value in Redis with TTL to reduce DB reads.
+Steps: get client; if present, setex(key, expiry, json.dumps(value)). Returns True on success; logs and returns False on exceptions. TTL prevents stale cache.
+def cache_get(key):
+Purpose: fetch cached JSON string and parse to Python object. Returns None if missing or on error.
+def cache_delete(key):
+Purpose: remove cache key to invalidate cached data after writes. Returns True on success.
+def clear_all_cache():
+Purpose: bulk clear application keys. Implementation concatenates key lists for patterns — potential inefficiency/risks (uses KEYS-like pattern). Deletes keys if any and prints number cleared. Returns False on errors.
+def increment_counter(key):
+Purpose: increment integer counters (api calls, registrations). Uses redis.incr which is atomic and fast. Returns new value or 0 if Redis missing.
+def add_to_set(key, value, expiry_seconds=3600):
+Purpose: maintain sets (e.g., active_users). Uses SADD then EXPIRE so the set is ephemeral.
+def rate_limit_check(user_id, endpoint, max_requests=100, window_seconds=3600):
+Purpose: simple per-user, per-endpoint rate limiter using a key like rate_limit:{user_id}:{endpoint}.
+Logic: if key missing -> setex(key, window, 1). If present and below max -> incr and allow. If at/above max -> deny. If Redis fails -> allow (fail-open).
+Why: these helpers centralize Redis usage, ensure graceful degradation if Redis is down, and keep consistent key naming/TTL behavior for caches and counters.
+
+UserResource — user CRUD & access control
+Class handles GET (single/all), POST (create), PUT (update), DELETE (delete). Key concepts: jwt protection, role-based checks, caching, input validation, database transactions and rollback.
+
+@jwt_required() def get(self, user_id=None):
+Protects route: must provide valid JWT. get_jwt_identity() returns string identity — cast to int. current_user is fetched from DB to check role and ownership.
+rate_limit_check(...) — enforces per-user rate limit for this endpoint.
+increment_counter('api_calls:users:get') — telemetry.
+If user_id provided:
+Authorization: admin can get any user; regular users only their own record.
+cache lookup: try cache_get(f'user:{user_id}') — return if present.
+DB fetch user = User.query.get(user_id); if found, build user_data dict (id, username, email, role, vehicle_number, phone); cache_set(..., 10) — short TTL to avoid stale data; return 200.
+If not found -> 404.
+If no user_id (list all):
+Only admin allowed.
+cache_key = 'users:all' -> try cached list -> return if present.
+Query all users, map to list of dicts -> cache for 10s -> return.
+Why: protects privacy (users see only themselves), reduces DB load with short-lived caches, and records metrics.
+
+def post(self): (create user)
+Parse JSON body: email, username, password, optional role, vehicle_number, phone.
+Validate presence of required fields.
+Normalize email and username (lower/strip) to avoid duplicates.
+Case-insensitive checks for email and username using ilike or filter. If vehicle provided, check uniqueness.
+Create User instance and add to DB inside try/except:
+On success: invalidate users list cache, increment users_created counter, return 201 with a user payload.
+On exception: rollback and parse common SQLite UNIQUE constraint error messages to return meaningful 400 responses; else return 500.
+Why: data integrity, helpful validation messages, keep caches consistent.
+
+@jwt_required() def put(self, user_id): (update user)
+get current user and validate user_id numeric.
+Authorization: user can update self; admin can update any.
+Fetch target user; apply fields from JSON if present: username/email/password/role (role only if admin), vehicle_number and phone_number validated for uniqueness only when changing.
+Commit inside try/except: on success invalidate user and users caches. On error rollback and return 500.
+Why: safe updates, unique constraints enforced, caches invalidated.
+
+@jwt_required() def delete(self, user_id): (delete user)
+Admin only.
+Prevent deletion of admin users as safety.
+Steps to safely delete:
+Find and finalize active reservations for user: set spot.status to 'available', increment lot.available_slots, mark reservation.leaving_time = now and compute cost if parking_cost == 0.
+Release any spots assigned to this user (set user_id None, status available, increment lot.available_slots).
+Delete all reservations for the user to avoid FK constraints (iterative db.session.delete).
+Delete user, commit.
+Invalidate caches, increment users_deleted counter.
+On error roll back and print traceback.
+Why: cascading cleanup to keep DB consistency, ensure spots and lot availability are corrected, and avoid dangling references.
+
+ParkingLotResource — create/read/update/delete parking lots
+def get(self, lot_id=None):
+increment_counter('api_calls:parking_lots:get') — telemetry.
+Single-lot: cache key f'parking_lot:{lot_id}' then DB query; return structured lot data and cache for 10s.
+All-lots: cache 'parking_lots:all', else query all, map list, cache for 10s, return.
+Why: caches short-lived because availability changes frequently.
+
+@jwt_required() def post(self): (create lot)
+Admin only check.
+Validate required fields from JSON.
+Create ParkingLot, set available_slots == number_of_slots.
+After commit, create ParkingSpot records equal to number_of_slots. Commit again.
+Invalidate parking_lots:all cache and increment parking_lots_created counter.
+Return 201 with created lot details.
+Why: create spots for each lot automatically for correct availability modeling.
+
+@jwt_required() def put(self, lot_id): (update)
+Admin only.
+Fetch lot, apply provided fields (price, number_of_slots, available_slots etc.), commit.
+Invalidate individual and list caches.
+Why: allow admin to edit pricing and capacity.
+
+@jwt_required() def delete(self, lot_id): (delete)
+Admin only.
+Delete all ParkingSpot rows for lot, then delete lot, commit.
+Invalidate caches and increment parking_lots_deleted.
+Why: remove dependent rows to satisfy referential integrity.
+
+ParkingSpotResource — spots CRUD / partial updates
+def get(self, spot_id=None):
+
+If spot_id given, return single spot data or 404. Else return list of all spots.
+def put(self, spot_id):
+
+Update spot.user_id or spot.status from JSON; commit and return updated info.
+Why: basic operations for direct spot management (rare in normal flow where reservations update spots).
+
+AvailableSpotsResource — availability per lot
+def get(self, lot_id):
+Fetch lot; query ParkingSpot where lot_id and status == 'available'; map to list and return count plus lot name.
+Why: endpoint for frontend to show actual free spots; uses actual ParkingSpot rows for accurate count.
+
+ReserveSpotResource — reservations (booking via API)
+Handles GET (single/all), POST (create reservation by explicit times), DELETE (cancel).
+
+def get(self, reservation_id=None):
+
+If reservation_id, return structured reservation with ISO timestamps; else list all reservations.
+@jwt_required() def post(self): (create reservation with explicit parking_time and leaving_time)
+
+Determine current_user and allow admin to create for any user; regular users only for themselves.
+Validate spot exists and is status 'available'.
+Parse parking_time and leaving_time (ISO), compute duration_hours and parking_cost = hours * lot.price.
+Create ReserveSpot, set spot.status = 'reserved', spot.user_id = user_id, lot.available_slots -= 1, commit.
+Invalidate parking_lots caches; increment reservation counters including per-day key (daily_reservations:YYYY-MM-DD).
+Return reservation payload.
+Why: supports booking for specified time windows; calculates cost at booking.
+
+@jwt_required() def delete(self, reservation_id): (cancel)
+Authorization: only owner or admin.
+On cancel: set spot.status='available', spot.user_id=None, increment lot.available_slots, delete reservation, commit, invalidate caches, increment reservations_cancelled.
+Why: frees spot immediately and keeps lot availability accurate.
+
+UserReservationsResource — listing reservations for a user
+@jwt_required() def get(self, user_id):
+Validate numeric user_id and authorization (self or admin).
+Query reservations for the user; for each reservation pull spot and lot to include lot_name, address, price, transaction fields.
+Return list.
+Why: per-user booking history endpoint used in user dashboard.
+
+LoginResource — authentication and session caching
+def post(self):
+Parse email/password; validate presence.
+Query user by email; check password equality (note: plain-text comparison — security risk for real deployment; hashing recommended).
+create_access_token(identity=str(user.id)) — creates JWT with string identity.
+Build a session_data dict and cache_set(f'user_session:{user.id}', session_data, 43200) — 12 hours TTL for session convenience.
+add_to_set('active_users', user.id, 43200) — track active users in Redis set.
+increment_counter('total_logins') and daily login counter.
+Return token and user info.
+Why: stateless auth via JWT; Redis used to speed lookups, show active users, and support analytics.
+
+RegisterResource — user signup
+def post(self):
+Read and normalize inputs; check duplicates (email, username, vehicle, phone) using case-insensitive queries; return 409 on conflict.
+Create user, commit.
+Create access token, cache session, add to active_users set, increment registration counters, invalidate users cache.
+Send welcome email placeholder comment (not implemented).
+Return 201 with token and user info.
+Why: immediate login after registration and consistent telemetry/caching.
+
+LogoutResource — session cleanup
+@jwt_required() def post(self):
+Get user identity, cache_delete user_session key, redis_client.srem('active_users', user_id) to remove from set, increment_logouts, return success.
+Why: remove session object and mark user inactive for analytics; note JWTs remain valid until they expire unless you implement token revocation.
+
+BookingResource — high-level booking operations (book, occupy, release)
+Endpoint pattern: POST /booking/<action> where action selects the behavior.
+
+@jwt_required() def post(self, action):
+Dispatch to helper methods _book_spot, _occupy_spot, _release_spot based on action string. Validates current user.
+Why: single endpoint to manage multiple booking-related actions.
+
+def _book_spot(self, user, data): (automatic booking)
+Validate lot exists. Ensure user has no active reservation (no leaving_time or leaving_time > now).
+Find first available spot in lot. Create reservation with parking_time = now and leaving_time = None (open-ended). parking_cost initially 0.0.
+Mark spot.status = 'occupied' and assign spot.user_id; decrement lot.available_slots.
+Commit, invalidate caches, increment counters (total_reservations and daily).
+Try to send booking confirmation email synchronously by importing and calling send_booking_confirmation_email(reservation.id) directly (fallback to printing error).
+Return reservation payload with status active.
+Why: This flow supports quick "arrive and occupy" bookings; email send is synchronous for immediate feedback (but can block).
+
+def _occupy_spot(self, user, data):
+Accept reservation_id; find reservation for user; mark spot as 'occupied' and update reservation.parking_time = now (actual arrival). Commit and return.
+Why: for workflows where user reserves in advance then marks themselves as parked.
+
+def _release_spot(self, user, data):
+Accept reservation_id, optional transaction_id and payment_method. Validate reservation ownership.
+Compute leaving_time = now and duration in hours. Compute charged_hours rounding rules: <=1 -> 1; else ceil(duration). Calculate parking_cost = charged_hours * lot.price.
+Map payment_method values to standardized strings, store transaction details.
+Set spot.status='available', spot.user_id=None; increment lot.available_slots; commit.
+Invalidate caches; send parking release receipt email synchronously (send_parking_release_email), return detailed completed reservation payload.
+Why: calculates final cost and returns receipt info; charging logic rounds up to nearest hour after the first hour.
+
+ReportsResource — admin analytics
+@jwt_required() def get(self):
+Admin-only guard.
+Collects per-lot stats: total spots, occupied, available, reservations count per lot, revenue per lot using SQL aggregate (sum of parking_cost where leaving_time not null).
+User stats: counts of total/admin/regular users.
+Reservation stats: total/active/completed counts and overall revenue sum.
+Trends: monthly trends (approx last 12 months using 30-day windows), daily revenue last 30 days, monthly revenue list for 12 months.
+Payment method distribution via group_by on ReserveSpot.payment_method.
+Redis analytics: read counters (api calls, total_logins, etc.) and active_users set cardinality for dashboard metrics; catches Redis errors gracefully.
+Return a structured payload containing parking lots, user stats, reservation stats, trends, and redis analytics.
+Why: central admin dashboard data aggregator; mixes DB aggregates with Redis counters for real-time telemetry. Note: monthly/daily windows use approximate 30-day increments rather than calendar months — acceptable for demo but not precise.
+
+UserReportsResource — per-user analytics
+@jwt_required() def get(self):
+Ensure user exists and compute stats for that user's reservations:
+totalSpent, totalBookings, activeBookings
+totalHours computed by summing durations where leaving_time present
+average hours per booking
+favorite location by counting occurrences of lot.location_name across reservations
+monthly spending and booking counts for last 12 months (again using 30-day windows, grouping by parking_time.month/year)
+daily usage distribution by weekday and hourly usage histogram (6 AM–11 PM)
+duration buckets (<1h, 1-2h, etc.)
+Return structured payload for user-facing analytics.
+Why: personalized insights for the user dashboard. Uses parking_time consistently.
+
+UserBookingHistoryResource — detailed booking history
+@jwt_required() def get(self):
+Fetch reservations for current user ordered by parking_time desc. For each reservation, gather spot and lot info, calculate duration_hours if leaving_time present, assemble friendly booking_history entries (vehicle_number, spot name). Return list.
+Why: historical list for user profile; helpful to show amounts and durations.
+
+TasksResource — trigger/background tasks and status
+@jwt_required() def post(self, task_type):
+
+Allow users (admin-specific for some tasks) to enqueue or run tasks:
+'export-csv' -> call export_user_data_csv.delay(current_user_id) (Celery async) and return task id.
+'test-daily-reminder' (admin): try .delay(); if async fails, fall back to synchronous call send_daily_reminders().
+'test-monthly-report' (admin): similar pattern.
+Error handling and permission checks included.
+@jwt_required() def get(self, task_type):
+
+Query param task_id required. Use celery.result.AsyncResult(task_id, app=celery) to get state: PENDING, PROGRESS, SUCCESS, other. Return state and info or error.
+Why: provides UI hooks to start long-running exports/reports and to poll task status. Supports both async and synchronous fallback for reliability.
+
+ExportResource — admin export endpoints
+@jwt_required() def get(self, export_type):
+Admin-only guard.
+export_type 'parking-details': try an optimized DB join across ReserveSpot, User, ParkingSpot, ParkingLot. If join fails, fallback to per-record lookups. Build export_data list with reservation details and return.
+export_type 'monthly-report': compute current month window and count reservations + revenue for that window.
+Handles exceptions and prints traceback for debugging.
+Why: data export for admins; fallback ensures functionality on DBs with limited join support.
+
+Cross-cutting notes (why design choices exist)
+JWT for stateless auth -> no server sessions required; suitable for SPA frontends.
+Redis used for caching, counters, sets, and simple rate-limiting -> improves performance and realtime analytics.
+Short cache TTLs (10s) chosen because parking availability changes rapidly.
+Counters and daily keys (daily_reservations:YYYY-MM-DD) provide simple time-series metrics without a separate analytics DB.
+Many operations invalidate caches after writes to keep cached views consistent.
+Role checks enforce admin-only operations for destructive or cross-user data.
+Error handling: try/except with db.session.rollback() on DB errors to keep transactional integrity.
+Some simplifications for demo: passwords are stored/compared in plain text (not secure), date windows use 30-day approximations for monthly trends — acceptable for demo but not production-grade.
+If you need:
+
+A printable line-by-line mapping with exact line numbers for your viva, reply and I’ll generate it.
+Short talking points (2–3 bullets per controller) you can memorize for viva, I can produce that too.
