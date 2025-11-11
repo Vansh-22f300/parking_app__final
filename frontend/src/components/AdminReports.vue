@@ -1201,7 +1201,7 @@ const generateMonthlyReport = async () => {
       
       // Create detailed monthly report data
       const monthlyReportData = [
-        ['PAREASE MONTHLY REPORT', '', '', ''],
+        ['PARKEASE MONTHLY REPORT', '', '', ''],
         ['Report Generated:', new Date().toLocaleString('en-IN'), '', ''],
         ['Report Period:', reportData.month, '', ''],
         ['', '', '', ''],
