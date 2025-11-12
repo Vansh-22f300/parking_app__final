@@ -20,11 +20,11 @@ celery.conf.update(
     beat_schedule={
         'daily-parking-reminders': {
             'task': 'tasks.send_daily_reminders',
-            'schedule': crontab(hour=18),   # 6 PM daily India time
+            'schedule': crontab(hour=18,minute=0),   # 6 PM daily India time
         },
         'monthly-activity-reports': {
             'task': 'tasks.send_monthly_reports',
-            'schedule':crontab(day=1, hour=9),  # 1st of month at 9 AM
+            'schedule':crontab(day_of_month=1,hour=9,minute=0),  # 1st of month at 9 AM
         },
     }
 
